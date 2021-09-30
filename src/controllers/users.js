@@ -1,81 +1,146 @@
-/* eslint-disable no-underscore-dangle */
 const passport = require('passport');
+const jwt = require('jsonwebtoken');
 const User = require('../models/user');
-
+const Institute = require('../models/institute');
+const logger = require('../services/logger');
 const { cloudinary } = require('../services/cloudinary');
 // for managing images
+
+const isValidEmail = (emailReg, email) => {
+  const re = new RegExp(emailReg);
+  return re.test(email);
+};
+
 module.exports.index = async (req, res) => {
-  const admins = await User.find({ userType: 'admin' });
-  const mods = await User.find({ userType: 'mod' });
-  const eventManagers = await User.find({ userType: 'eventmanager' });
-  const users = await User.find({ userType: 'user' });
-  res.json({
+  const admins = await User.find(
+    { userType: 'admin' },
+    {
+      username: 1,
+      about: 1,
+      bio: 1,
+      points: 1,
+      avatar: 1,
+      createdAt: 1,
+    },
+  );
+  const mods = await User.find(
+    { userType: 'mod' },
+    {
+      username: 1,
+      about: 1,
+      bio: 1,
+      points: 1,
+      avatar: 1,
+      createdAt: 1,
+    },
+  );
+  const eventManagers = await User.find(
+    { userType: 'eventmanager' },
+    {
+      username: 1,
+      about: 1,
+      bio: 1,
+      points: 1,
+      avatar: 1,
+      createdAt: 1,
+    },
+  );
+  const users = await User.find(
+    { userType: 'user' },
+    {
+      username: 1,
+      about: 1,
+      bio: 1,
+      points: 1,
+      avatar: 1,
+      createdAt: 1,
+    },
+  );
+  return res.json({
+    success: true,
     admins,
     mods,
     eventManagers,
     users,
   });
 };
-module.exports.createUser = async (req, res, next) => {
-  try {
-    const {
-      email, name, username, password,
-    } = req.body;
-    const user = new User({
-      email,
-      name,
-      username,
-    });
-    const registeredUser = await User.register(user, password);
-    // eslint-disable-next-line consistent-return
-    req.login(registeredUser, (err) => {
-      // eslint-disable-next-line no-undef
-      if (err) return next(err);
-      // so that we won't redirect to previous page :O when acc has been created.
-      res.json(201).json({
-        success: true,
-        user: registeredUser,
-      });
-      delete req.session.returnTo;
-    });
-  } catch (err) {
-    next(err);
-  }
-};
 
 module.exports.loginUser = (req, res, next) => {
-  // eslint-disable-next-line consistent-return
-  passport.authenticate('local', (err, user, info) => {
+  passport.authenticate('google-token', async (err, user, info) => {
     if (err) { return next(err); }
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: info,
+        message: info.message,
       });
     }
-    // eslint-disable-next-line consistent-return
-    req.logIn(user, (error) => {
-      if (error) { return next(error); }
-      res.statsu(200).json({ success: true, user: req.user });
-    });
+    logger.debug('Google Auth');
+
+    const { username } = user;
+    const token = jwt.sign({ username }, process.env.JWT_SECRET);
+    return res.status(200).json({ success: true, token, user });
   })(req, res, next);
 };
 
-module.exports.logoutUser = (req, res) => {
-  req.logout();
-  res.status(200).json({
-    success: true,
-    message: 'Logged out successfully',
-  });
+module.exports.signupUser = async (req, res, next) => {
+  const { username, instituteId } = req.body;
+  passport.authenticate('google-token', async (err, user, info) => {
+    if (err) { return next(err); }
+    if (user || info.oauthError) {
+      return res.status(400).json({
+        success: false,
+        message: info.message,
+      });
+    }
+    logger.debug('Google Auth Signup');
+
+    const institute = await Institute.findOne({ instituteId });
+    const email = info.emails[0].value;
+    const name = info.displayName;
+
+    if (!institute?.emailRegex) {
+      const error = { statusCode: 400, message: 'Institute not found' };
+      return next(error);
+    }
+
+    const { emailRegex } = institute;
+
+    if (!isValidEmail(emailRegex, email)) {
+      const error = { statusCode: 400, message: 'Email not valid for Institute' };
+      return next(error);
+    }
+
+    const newUser = new User({
+      username,
+      institute: institute._id,
+      email,
+      name,
+    });
+
+    institute.members.push(newUser._id);
+
+    if (req.file) {
+      newUser.avatar = { url: req.file.path, filename: req.file.filename };
+    }
+
+    try {
+      await newUser.save();
+      await institute.save();
+    } catch (error) {
+      next(error);
+    }
+
+    const token = jwt.sign({ username }, process.env.JWT_SECRET);
+    return res.status(200).json({ success: true, token, user: newUser });
+  })(req, res, next);
 };
 
-module.exports.updateProfile = async (req, res) => {
+module.exports.updateProfile = async (req, res, next) => {
   /* for updating profiles including avatar here. */
   const id = req.user._id;
   const {
     name, dob, bio, about,
   } = req.body;
-  // gotta change it to username as profile will be given id will be kept hidden as possible
   const user = await User.findByIdAndUpdate(
     id,
     {
@@ -85,33 +150,47 @@ module.exports.updateProfile = async (req, res) => {
     },
     { new: true },
   );
-  /* await User.findById(id) */
+  if (!user) {
+    const err = { statusCode: 404, message: 'User not found' };
+    return next(err);
+  }
   if (req.file) {
     if (user.avatar) {
       await cloudinary.uploader.destroy(user.avatar.filename);
     }
     user.avatar = { url: req.file.path, filename: req.file.filename };
   }
-  await user.save();
-  res.status(201).json({
+
+  try {
+    await user.save();
+  } catch (error) {
+    next(error);
+  }
+
+  return res.status(201).json({
     success: true,
     user,
   });
 };
 
-module.exports.showProfile = async (req, res) => {
-  const user = await User.find({ username: req.params.userId })
+module.exports.showProfile = async (req, res, next) => {
+  const user = await User.findOne({ username: req.params.username })
     .populate('awards')
-    .populate('Organizations')
+    .populate('organizations')
     .populate('events');
   if (!user) {
-    res.status(404).json({
-      success: false,
-      message: 'User not found',
-    });
+    const err = { statusCode: 404, message: 'User not found' };
+    return next(err);
   }
-  res.status(200).json({
+  const email = (req.user.institute === user.institute) ? user.email : '';
+  return res.status(200).json({
     success: true,
-    user,
+    user: {
+      name: user.name,
+      username: user.username,
+      bio: user.bio,
+      about: user.about,
+      email,
+    },
   });
 };

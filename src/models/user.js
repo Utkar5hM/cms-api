@@ -1,15 +1,7 @@
-/* eslint-disable no-unused-vars */
 const mongoose = require('mongoose');
 
 const { Schema } = mongoose;
-const passportLocalMongoose = require('passport-local-mongoose');
 
-// requiring other schemas (awards and events here)
-const Event = require('./event');
-const Award = require('./award');
-const Organization = require('./organization');
-const Institute = require('./institute');
-/* yet to be created */
 const ImageSchema = new Schema({
   url: String,
   filename: String,
@@ -36,6 +28,11 @@ const UserSchema = new Schema(
     name: {
       type: String,
       required: [true, 'Name cannot be Empty'],
+    },
+    username: {
+      type: String,
+      required: [true, 'Username cannot be Empty'],
+      unique: true,
     },
     // basically the bio of a typical sodial media or a short description of themselves
     bio: {
@@ -76,8 +73,5 @@ const UserSchema = new Schema(
   },
   { timestamps: true },
 ); // for knowing the date of creationg
-
-// integrating passport with UserSchema before exporting it as a mongoose model
-UserSchema.plugin(passportLocalMongoose);
 
 module.exports = mongoose.model('User', UserSchema);

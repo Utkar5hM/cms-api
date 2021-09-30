@@ -1,4 +1,3 @@
-/* eslint-disable no-underscore-dangle */
 const { cloudinary } = require('../services/cloudinary');
 
 const Event = require('../models/event');
@@ -9,14 +8,35 @@ const Institute = require('../models/institute');
 seperate get req will be made for all the events happening */
 module.exports.index = async (req, res) => {
   const organizations = await Organization.find({});
-  res.json(organizations);
+  return res.json({ success: true, organizations });
 };
-
-module.exports.createOrganization = async (req, res) => {
+module.exports.instituteIndex = async (req, res) => {
+  const institute = await Institute.findOne({ instituteId: req.params.instituteId });
+  const organizations = await Organization.find({
+    institute: institute._id,
+  });
+  return res.json({ success: true, organizations });
+};
+module.exports.createOrganization = async (req, res, next) => {
   const {
     name, organizationId, externalUrl, about, bio,
-  } = req.body.organization;
-  const institute = await Institute.find({ instituteId: req.params.instituteId });
+  } = req.body;
+  if (req.user.userType === 'mod') {
+    const instituteCount = await Institute.count(
+      {
+        instituteId: req.params.instituteId,
+        $in: { mods: req.user._id },
+      },
+    );
+    if (!instituteCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Institute Not Found or the current user is not a mod of the institute',
+      };
+      return next(err);
+    }
+  }
+  const institute = await Institute.findOne({ instituteId: req.params.instituteId });
   const organization = new Organization({
     name,
     organizationId,
@@ -25,20 +45,22 @@ module.exports.createOrganization = async (req, res) => {
     externalUrl,
   });
   organization.institute = institute._id;
-  if (req.files.logo[0]) {
+  institute.organizations.push(organization._id);
+  if (req.files?.logo) {
     organization.logo = {
       url: req.files.logo[0].path,
       filename: req.files.logo[0].filename,
     };
   }
-  if (req.files.bannerImage[0]) {
+  if (req.files?.bannerImage) {
     organization.bannerImage = {
-      url: req.files.logo[0].path,
-      filename: req.files.logo[0].filename,
+      url: req.files.bannerImage[0].path,
+      filename: req.files.bannerImage[0].filename,
     };
   }
   await organization.save();
-  res.send(organization);
+  await institute.save();
+  return res.json({ success: true, organization });
 };
 
 module.exports.showOrganization = async (req, res, next) => {
@@ -50,7 +72,7 @@ module.exports.showOrganization = async (req, res, next) => {
     .populate('eventmanagers');
   if (!organization) {
     const err = { statusCode: 404, message: 'Organization Not Found' };
-    next(err);
+    return next(err);
   }
   const activeEvents = await Event.find({
     organization: organization._id,
@@ -60,43 +82,118 @@ module.exports.showOrganization = async (req, res, next) => {
     organization: organization._id,
     completed: true,
   });
-  res.json({
+  return res.json({
     success: true, organization, activeEvents, completedEvents,
   });
 };
 
 module.exports.editOrganization = async (req, res, next) => {
+  const {
+    name, organizationId, externalUrl, about, bio,
+  } = req.body;
+  const institute = await Institute.findOne({ instituteId: req.params.instituteId });
+  if (!institute) {
+    const err = {
+      statusCode: 404,
+      message: 'Institute not found.',
+    };
+    return next(err);
+  }
+  if (req.user.userType === 'mod') {
+    const instituteCount = await Institute.count(
+      {
+        instituteId: req.params.instituteId,
+        $in: { mods: req.user._id },
+      },
+    );
+    if (!instituteCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Institute Not Found or the current user is not a mod of the institute',
+      };
+      return next(err);
+    }
+  }
+  if (req.user.userType === 'eventmanager') {
+    const organizationCount = await Organization.count(
+      {
+        organizationId: req.params.organizationId,
+        $in: { eventmanagers: req.user._id },
+      },
+    );
+    if (!organizationCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Organization Not Found or the current user is not a mod of the Organization',
+      };
+      return next(err);
+    }
+  }
   const organization = await Organization.findOneAndUpdate(
-    { organizationId: req.params.organizationId },
-    { ...req.body.organization },
+    {
+      organizationId: req.params.organizationId,
+      institute: institute._id,
+    },
+    {
+      name,
+      organizationId,
+      externalUrl,
+      bio,
+      about,
+    },
+    { new: true },
   );
   if (!organization) {
     const err = { statusCode: 404, message: 'Organization not found' };
-    next(err);
+    return next(err);
   }
-  if (req.files.logo[0]) {
+  if (req.files?.logo) {
     await cloudinary.uploader.destroy(organization.logo.filename);
     organization.logo = {
       url: req.files.logo[0].path,
       filename: req.files.logo[0].filename,
     };
   }
-  if (req.files.bannerImage[0]) {
+  if (req.files?.bannerImage) {
     await cloudinary.uploader.destroy(organization.bannerImage.filename);
     organization.bannerImage = {
-      url: req.files.logo[0].path,
-      filename: req.files.logo[0].filename,
+      url: req.files.bannerImage[0].path,
+      filename: req.files.bannerImage[0].filename,
     };
   }
   await organization.save();
-  res.json({ success: true, organization });
+  return res.json({ success: true, organization });
 };
 
 /* To add event managers, you need to be a mod */
 module.exports.addEventManager = async (req, res, next) => {
+  if (req.user.userType === 'mod') {
+    const instituteCount = await Institute.count(
+      {
+        instituteId: req.params.instituteId,
+        $in: { mods: req.user._id },
+      },
+    );
+    if (!instituteCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Institute Not Found or the current user is not a mod of the institute',
+      };
+      return next(err);
+    }
+  }
   const user = await User.findOne({ username: req.body.username });
+  const institute = await Institute.findOne({ instituteId: req.params.instituteId });
+  if (!institute) {
+    const err = {
+      statusCode: 404,
+      message: 'Institute not found.',
+    };
+    return next(err);
+  }
   const organization = await Organization.findOne({
     organizationId: req.params.organizationId,
+    institute: institute._id,
     $in: {
       members: user._id,
     },
@@ -106,11 +203,11 @@ module.exports.addEventManager = async (req, res, next) => {
       statusCode: 403,
       message: 'Organization not found or the user is not a member of the organization',
     };
-    next(err);
+    return next(err);
   }
   if (!user) {
     const err = { statusCode: 404, message: 'User not found' };
-    next(err);
+    return next(err);
   }
   const { userType } = user;
   if (
@@ -121,44 +218,104 @@ module.exports.addEventManager = async (req, res, next) => {
     organization.eventmanagers.push(user._id);
     await user.save();
     await organization.save();
-    res.json();
-  } else {
-    const err = {
-      statusCode: 400,
-      message: 'The User doesn\'t have minimum previleges to become a EventManager',
-    };
-    next(err);
+    return res.json();
   }
+  const err = {
+    statusCode: 400,
+    message: 'The User doesn\'t have minimum previleges to become a EventManager',
+  };
+  return next(err);
 };
 
 module.exports.addMember = async (req, res, next) => {
+  if (req.user.userType === 'mod') {
+    const instituteCount = await Institute.count(
+      {
+        instituteId: req.params.instituteId,
+        $in: { mods: req.user._id },
+      },
+    );
+    if (!instituteCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Institute Not Found or the current user is not a mod of the institute',
+      };
+      return next(err);
+    }
+  }
+  if (req.user.userType === 'eventmanager') {
+    const organizationCount = await Organization.count(
+      {
+        organizationId: req.params.organizationId,
+        $in: { eventmanagers: req.user._id },
+      },
+    );
+    if (!organizationCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Organization Not Found or the current user is not a mod of the Organization',
+      };
+      return next(err);
+    }
+  }
   const organization = await Organization.findOne({
     organizationId: req.params.organizationId,
   }).populate('institute');
-  const user = await User.findOne({ username: req.body.username }).populate('institute');
+  const user = await User.findOne({
+    username: req.body.username,
+    $in: { organizations: organization._id },
+  });
   if (!user) {
     const err = { statusCode: 404, message: 'User not found' };
-    next(err);
+    return next(err);
   }
   if (user.institute !== organization.institute) {
     const err = { statusCode: 403, message: 'User is not a member of the institute' };
-    next(err);
+    return next(err);
   }
   user.organization.push(organization._id);
   organization.members.push(user._id);
   await user.save();
   await organization.save();
-  res.json({ success: true, user, organization });
+  return res.json({ success: true, user, organization });
 };
 
-module.exports.deleteOrganization = async (req, res) => {
+module.exports.deleteOrganization = async (req, res, next) => {
+  if (req.user.userType === 'mod') {
+    const instituteCount = await Institute.count(
+      {
+        instituteId: req.params.instituteId,
+        $in: { mods: req.user._id },
+      },
+    );
+    if (!instituteCount) {
+      const err = {
+        statusCode: 404,
+        message: 'Institute Not Found or the current user is not a mod of the institute',
+      };
+      return next(err);
+    }
+  }
+  const institute = await Institute.findOne({ instituteId: req.params.instituteId });
+  if (!institute) {
+    const err = {
+      statusCode: 404,
+      message: 'Institute not found.',
+    };
+    return next(err);
+  }
   const organization = await Organization.find({
-    eventId: req.params.organizationId,
+    organizationId: req.params.organizationId,
+    institute: institute._id,
   });
+  if (!organization) {
+    const err = { statusCode: 404, message: 'Organization not found' };
+    return next(err);
+  }
   await cloudinary.uploader.destroy(organization.bannerImage.filename);
   await cloudinary.uploader.destroy(organization.logo.filename);
   await organization.findByIdAndDelete(organization._id);
-  res.json({ success: true, message: 'Organization deleted Successfully' });
+  return res.json({ success: true, message: 'Organization deleted Successfully' });
 };
 
 /* add/remove members function to be added yet, */

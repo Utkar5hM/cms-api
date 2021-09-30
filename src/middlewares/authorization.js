@@ -1,5 +1,3 @@
-/* eslint-disable no-underscore-dangle */
-/* eslint-disable consistent-return */
 /* eslint-disable func-names */
 /*
 As considering the hirearchy level of access
@@ -12,9 +10,9 @@ const Organization = require('../models/organization');
 module.exports.isAdmin = function (req, res, next) {
   const { userType } = req.user;
   if (userType === 'admin') {
-    next();
+    return next();
   }
-  res
+  return res
     .status(403)
     .json({ success: false, message: 'you do no have permission to do that!' });
 };
@@ -22,15 +20,10 @@ module.exports.isAdmin = function (req, res, next) {
 // middleware checks if the loggen-in-user is admin or mod
 module.exports.isMod = function (req, res, next) {
   const { userType } = req.user;
-  if (userType === 'admin') {
-    next();
+  if (userType === 'admin' || userType === 'mod') {
+    return next();
   }
-  if (userType === 'mod') {
-    if (req.user.institute === req.params.instituteId) {
-      next();
-    }
-  }
-  res
+  return res
     .status(403)
     .json({ success: false, message: 'you do no have permission to do that!' });
 };
@@ -39,13 +32,8 @@ module.exports.isMod = function (req, res, next) {
 // this middleware is an async function so its recommended to use it inside catchasync function.
 module.exports.isEventManager = async function (req, res, next) {
   const { userType } = req.user;
-  if (userType === 'admin') {
-    next();
-  }
-  if (userType === 'mod') {
-    if (req.user.institute === req.params.instituteId) {
-      next();
-    }
+  if (userType === 'admin' || userType === 'mod') {
+    return next();
   }
   if (userType === 'eventmanager') {
     const { organizationId } = req.params;
@@ -53,9 +41,9 @@ module.exports.isEventManager = async function (req, res, next) {
       organizationId,
       eventmanagers: { $in: [req.user._id] },
     });
-    if (organizationCount) next();
+    if (organizationCount) return next();
   }
-  res
+  return res
     .status(403)
     .json({ success: false, message: 'you do no have permission to do that!' });
 };

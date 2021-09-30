@@ -12,24 +12,17 @@ const { isLoggedIn } = require('../middlewares/authentication');
 
 const upload = multer({ storage });
 
-/* post request to register */
-router
-  .route('/register')
-  .post(catchAsync(users.createUser));
-
 router
   .route('/')
-  // eslint-disable-next-line consistent-return
-  .get((req, res, next) => {
-    if (req.user) return res.json(req.user);
-    const err = { statusCode: 403, message: 'you are not logged in' };
-    next(err);
-  });
+  // to get logged in user
+  .get(isLoggedIn, (req, res) => res.json(req.user));
 
 /* for getting all users list according to userType */
 router
   .route('/users')
-  .get(catchAsync(users.index))
+  /* route to get all users details */
+  .get(isLoggedIn,
+    catchAsync(users.index))
   /* updating profile section. */
   .put(isLoggedIn,
     upload.single('avatar'),
@@ -37,15 +30,19 @@ router
 
 /* Note: userId refers to the username and not the objectId */
 router
-  .route('/users/:userId')
-  .get(catchAsync(users.showProfile));
+  .route('/users/:username')
+  /* GET request to get specific profile details */
+  .get(isLoggedIn,
+    catchAsync(users.showProfile));
 
 router
   .route('/login')
   /* post request for logging in  */
   .post(users.loginUser);
-/* get requesst to logout */
+
 router
-  .get('/logout',
-    users.logoutUser);
+  .route('/signup')
+  .post(upload.single('avatar'),
+    users.signupUser);
+
 module.exports = router;
