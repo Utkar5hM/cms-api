@@ -27,9 +27,7 @@ router
 
 router
   .route('/')
-/* GET request to get all the organizations of a institute */
-  .get(catchAsync(organizations.instituteIndex))
-/* POST request to create Organization of a institute */
+  /* POST request to create Organization of a institute */
   .post(
     isLoggedIn,
     isMod,
@@ -38,16 +36,16 @@ router
   );
 router
   .route('/:organizationId/')
-/* GET request to get specific organization detail */
+  /* GET request to get specific organization detail */
   .get(catchAsync(organizations.showOrganization))
-/* PUT request to edit specific organization detail */
+  /* PUT request to edit specific organization detail */
   .put(
     isLoggedIn,
     catchAsync(isEventManager),
     fileUploads,
     catchAsync(organizations.editOrganization),
   )
-/* DELETE request to delete specific Organization */
+  /* DELETE request to delete specific Organization */
   .delete(
     isLoggedIn,
     isMod,
