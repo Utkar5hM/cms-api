@@ -1,4 +1,5 @@
 const { body } = require('express-validator');
+const User = require('../models/user');
 
 module.exports.userSignupValidation = [
   body('username')
@@ -14,7 +15,12 @@ module.exports.userSignupValidation = [
     .isLength({ max: 8 })
     .withMessage(
       'length of the instituteid should consists of maximum 8 characters.',
-    ),
+    )
+    .custom(async (val) => {
+      const user = await User.findOne({ username: val });
+      if (user) return false;
+      return true;
+    }),
   body('access_token')
     .exists({ checkFalsy: true })
     .withMessage('valid access-token is required')
