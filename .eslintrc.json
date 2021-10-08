@@ -12,7 +12,8 @@
     // to override any rules from airbnb styleguide, add here
     "linebreak-style": 0,
     "no-underscore-dangle": ["error", { "allow": ["_id"] }],
-    "no-unused-vars": ["error", { "args": "none" }]
+    "no-unused-vars": ["error", { "args": "none" }],
+    "object-curly-newline": 0
     // reference https://eslint.org/docs/rules/
   }
 }

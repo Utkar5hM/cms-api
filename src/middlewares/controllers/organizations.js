@@ -3,16 +3,15 @@ const Organization = require('../../models/organization');
 // eslint-disable-next-line consistent-return
 module.exports.checkmod = async (req, next) => {
   if (req.user.userType === 'mod') {
-    const instituteCount = await Institute.count(
-      {
-        instituteId: req.params.instituteId,
-        $in: { mods: req.user._id },
-      },
-    );
+    const instituteCount = await Institute.count({
+      _id: req.user.Institute._id,
+      $in: { mods: req.user._id },
+    });
     if (!instituteCount) {
       const err = {
         statusCode: 404,
-        message: 'Institute Not Found or the current user is not a mod of the institute',
+        message:
+          'Institute Not Found or the current user is not a mod of the institute',
       };
       return next(err);
     }
@@ -21,16 +20,15 @@ module.exports.checkmod = async (req, next) => {
 // eslint-disable-next-line consistent-return
 module.exports.checkeventmanager = async (req, next) => {
   if (req.user.userType === 'eventmanager') {
-    const organizationCount = await Organization.count(
-      {
-        organizationId: req.params.organizationId,
-        $in: { eventmanagers: req.user._id },
-      },
-    );
+    const organizationCount = await Organization.count({
+      organizationId: req.params.organizationId,
+      $in: { eventmanagers: req.user._id },
+    });
     if (!organizationCount) {
       const err = {
         statusCode: 404,
-        message: 'Organization Not Found or the current user is not a evemtmanager of the Organization',
+        message:
+          'Organization Not Found or the current user is not a evemtmanager of the Organization',
       };
       return next(err);
     }

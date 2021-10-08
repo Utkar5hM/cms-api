@@ -26,6 +26,7 @@ router.use(
 
 router
   .route('/')
+  .get(catchAsync(events.index))
   /* POST request for creating events for an organization */
   .post(
     isLoggedIn,

@@ -30,7 +30,7 @@ app.use(passport.initialize());
 /* requiring routes */
 // for normal(any) user Routes especially for logging in
 const userRoutes = require('./routes/users');
-const organizationRoutes = require('./routes/independent/organization');
+const organizationRoutes = require('./routes/organizations');
 const eventRoutes = require('./routes/independent/events');
 const adminRoutes = require('./routes/admin');
 const modRoutes = require('./routes/mod');

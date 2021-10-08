@@ -19,6 +19,10 @@ const OrganizationSchema = new Schema({
     unique: true,
     required: true,
   },
+  open: {
+    type: Boolean,
+    default: false,
+  },
   bio: {
     type: String,
   },

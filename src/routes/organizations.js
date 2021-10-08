@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 
 const multer = require('multer');
-const eventRoutes = require('./events');
 
 const catchAsync = require('../utilities/catchasync');
 
@@ -21,12 +20,10 @@ const fileUploads = upload.fields([
   { name: 'bannerImage', maxCount: 1 },
 ]);
 /* requiring dependent route */
-router
-  .use('/events',
-    eventRoutes);
 
 router
   .route('/')
+  .get(catchAsync(organizations.index))
   /* POST request to create Organization of a institute */
   .post(
     isLoggedIn,

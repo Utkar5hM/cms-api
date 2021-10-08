@@ -9,7 +9,6 @@ const { InstituteValidation } = require('../validators/institutes');
 const catchAsync = require('../utilities/catchasync');
 
 const institutes = require('../controllers/institutes');
-const OrganizationRoutes = require('./organizations');
 
 const { isLoggedIn } = require('../middlewares/authentication');
 const { isMod, isAdmin } = require('../middlewares/authorization');
@@ -22,9 +21,6 @@ const fileUploads = upload.fields([
   { name: 'logo', maxCount: 1 },
   { name: 'bannerImage', maxCount: 1 },
 ]);
-
-/* using organization route(dependent routes) */
-router.use('/:instituteId/organizations', OrganizationRoutes);
 
 router
   .route('/')
